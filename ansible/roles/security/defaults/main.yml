@@ -1,0 +1,7 @@
+---
+security_admin_user: sysadmin
+security_admin_group: wheel
+security_ssh_public_key_file: "~/.ssh/id_ed25519.pub"
+security_allowed_firewall_services:
+  - ssh
+  - http
