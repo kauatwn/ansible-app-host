@@ -1,0 +1,25 @@
+---
+- name: Instalar Caddy via dnf
+  ansible.builtin.dnf:
+    name: caddy
+    state: present
+
+- name: Permitir que o proxy reverso conecte na API local via SELinux
+  ansible.posix.seboolean:
+    name: httpd_can_network_connect
+    state: true
+    persistent: true
+  when: (ansible_facts.selinux.status | default('disabled')) == 'enabled'
+
+- name: Configurar Caddyfile encaminhando tráfego HTTP para a API interna
+  ansible.builtin.template:
+    src: Caddyfile.j2
+    dest: /etc/caddy/Caddyfile
+    mode: "0644"
+  notify: Recarregar Caddy
+
+- name: Garantir que o Caddy esteja ativo e habilitado no boot
+  ansible.builtin.systemd:
+    name: caddy
+    enabled: true
+    state: started
