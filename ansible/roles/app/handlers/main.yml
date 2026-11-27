@@ -1,6 +1,8 @@
 ---
-- name: Reiniciar API
+# Handlers acionados por notificações de mudanças nas tarefas da aplicação
+- name: Restart API service
+  # Reinicia o serviço da API para aplicar novas versões do binário ou atualizações na unit do systemd
   ansible.builtin.systemd:
-    name: api
-    state: restarted
-    daemon_reload: true
+    name: "{{ app_name }}"
+    state: restarted # Reinicia o processo imediatamente
+    daemon_reload: true # Recarrega as definições do systemd a partir do disco antes de reiniciar

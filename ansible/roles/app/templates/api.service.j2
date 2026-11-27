@@ -1,33 +1,63 @@
 [Unit]
+# Metadados e dependências do serviço
+# Descrição legível exibida nos comandos de status e logs do systemctl
 Description=Go Hello World API
+# Garante que a pilha de rede do sistema esteja inicializada antes de iniciar a API
 After=network.target
 
 [Service]
+# Definições fundamentais de execução do processo
+# O processo invocado pelo ExecStart é considerado o processo principal do serviço
 Type=simple
+# Executa como usuário não privilegiado de sistema para evitar execução como root
 User={{ app_user }}
+# Grupo primário isolado para o processo da aplicação
 Group={{ app_user }}
+# Informa a porta HTTP esperada pela aplicação Go via variável de ambiente
 Environment=PORT={{ app_port }}
-ExecStart={{ app_dir }}/api
+# Caminho absoluto para o binário executável da aplicação
+ExecStart={{ app_dir }}/{{ app_name }}
+# Reinicia o processo automaticamente caso ele termine com erro ou seja finalizado por sinal
 Restart=on-failure
+# Intervalo de espera de 5 segundos antes de tentar reiniciar o processo com falha
 RestartSec=5
 
+# Isolamento do sistema de arquivos e prevenção de escalada de privilégios (Sandboxing)
+# Impede que a aplicação e seus subprocessos ganhem privilégios adicionais via binários setuid/setgid
 NoNewPrivileges=true
+# Monta todo o sistema de arquivos (/usr, /boot, /etc) em modo estritamente somente leitura (read-only)
 ProtectSystem=strict
+# Oculta e torna totalmente inacessíveis os diretórios de usuários (/home, /root)
 ProtectHome=true
+# Cria um diretório /tmp exclusivo e isolado em namespace próprio para este serviço
 PrivateTmp=true
 
+# Bloqueio de acesso a dispositivos físicos, parâmetros do kernel e relógio do sistema
+# Fornece apenas dispositivos virtuais seguros (/dev/null, /dev/zero), bloqueando acesso a discos físicos
 PrivateDevices=true
+# Impede alterações nos parâmetros do kernel expostos via /proc/sys e /sys
 ProtectKernelTunables=true
+# Bloqueia o carregamento explícito de módulos do kernel pelo processo
 ProtectKernelModules=true
+# Monta os diretórios de controle de recursos (cgroups) como somente leitura
 ProtectControlGroups=true
+# Impede alterações no relógio do hardware ou relógio do sistema
 ProtectClock=true
+# Impede que o processo altere o hostname da máquina
 ProtectHostname=true
+# Bloqueia o acesso direto aos buffers de mensagens do kernel (dmesg)
 ProtectKernelLogs=true
 
+# Remoção de capabilities Linux e restrição de permissões de arquivos gerados
+# Bloqueia a criação de arquivos ou sockets com bits SUID/SGID ativos
 RestrictSUIDSGID=true
+# Impede a alteração do domínio de execução do kernel (ex: emulação 32-bit)
 LockPersonality=true
+# Remove todas as capabilities do kernel Linux para este processo (equivalente ao drop ALL do K8s)
 CapabilityBoundingSet=
+# Garante que quaisquer arquivos gerados pelo processo só tenham permissão de leitura/escrita para ele mesmo
 UMask=0077
 
 [Install]
+# Alvo do systemd para ativação no boot: inicia automaticamente no modo multiusuário padrão do Linux
 WantedBy=multi-user.target

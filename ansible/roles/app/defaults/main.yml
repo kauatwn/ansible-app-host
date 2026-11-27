@@ -1,5 +1,17 @@
 ---
+# Valores padrão das variáveis da aplicação Go (podem ser sobrescritas no playbook ou inventário)
+
+# Nome identificador da aplicação, executável e unit do systemd
+app_name: api
+
+# Usuário de sistema sem privilégios dedicado a executar o processo da API
 app_user: appuser
+
+# Porta TCP interna em que o servidor HTTP da API escuta requisições locais
 app_port: 8080
+
+# Diretório padrão no host onde o binário e arquivos da aplicação serão alocados (Filesystem Hierarchy Standard)
 app_dir: /opt/api
-app_binary_src: "{{ playbook_dir }}/../../bin/api"
+
+# Caminho de origem do binário compilado localmente na máquina de controle (com fallback de resolução de caminhos relativos)
+app_binary_src: "{{ (playbook_dir ~ '/../../bin/' ~ app_name) if (playbook_dir ~ '/../../bin/' ~ app_name) is file else (playbook_dir ~ '/../../../bin/' ~ app_name) }}"
