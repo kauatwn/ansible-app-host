@@ -2,6 +2,7 @@
 # Edit at https://www.toptal.com/developers/gitignore?templates=windows,linux,macos,visualstudiocode,goland,go,ansible
 
 ### Ansible ###
+ansible/inventory/hosts.ini
 *.retry
 
 ### Go ###
@@ -9,6 +10,7 @@
 # https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore
 #
 # Binaries for programs and plugins
+bin/*
 *.exe
 *.exe~
 *.dll
