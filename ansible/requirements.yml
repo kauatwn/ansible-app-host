@@ -1,4 +1,6 @@
 ---
+# Coleções externas do Ansible Galaxy necessárias no nó de controle para gerenciar recursos do host
 collections:
-  - name: ansible.posix
-  - name: community.general
+  - name: ansible.posix # Fornece módulos para firewalld, authorized_key e gerenciamento de booleanos SELinux
+  - name: community.general # Coleção da comunidade com utilitários gerais e módulos de administração Linux
+roles: [] # Nenhuma role externa necessária; todas as roles (security, app, proxy) são locais
