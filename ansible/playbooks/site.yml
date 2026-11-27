@@ -1,0 +1,32 @@
+---
+- name: Provisionar e endurecer servidor de aplicação Linux
+  hosts: web
+  become: true
+  gather_facts: false
+
+  vars:
+    security_admin_user: sysadmin
+    app_name: api
+    app_user: appuser
+    app_port: 8080
+    app_binary_src: "{{ playbook_dir }}/../../bin/{{ app_name }}"
+
+  pre_tasks:
+    - name: Instalar Python 3 na VM minimalista (bootstrap)
+      ansible.builtin.raw: |
+        if ! command -v python3 >/dev/null 2>&1; then
+          dnf install -y python3 python3-libdnf5 || dnf install -y python3 || exit 1
+          echo BOOTSTRAP_PYTHON_INSTALLED
+        else
+          echo BOOTSTRAP_PYTHON_PRESENT
+        fi
+      register: python_bootstrap
+      changed_when: "'BOOTSTRAP_PYTHON_INSTALLED' in python_bootstrap.stdout"
+
+    - name: Coletar facts do sistema após instalar o Python
+      ansible.builtin.setup:
+
+  roles:
+    - role: security
+    - role: app
+    - role: proxy
