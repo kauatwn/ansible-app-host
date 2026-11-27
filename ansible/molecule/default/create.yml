@@ -1,0 +1,62 @@
+---
+# Fase 'create': Constrói a imagem Fedora 44 com suporte a systemd e inicializa o container efêmero
+- name: Create ephemeral Fedora container with systemd
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  tasks:
+    # Constrói a imagem Docker localmente com base no Dockerfile do cenário de teste
+    - name: Build Fedora 44 image with systemd installed
+      community.docker.docker_image:
+        name: molecule-fedora-systemd
+        tag: "44"
+        source: build
+        build:
+          path: "{{ playbook_dir }}"
+        state: present
+
+    # Inicia o container com privilégios de kernel e montagens de cgroup necessárias para o systemd
+    - name: Start Fedora 44 container with systemd init
+      community.docker.docker_container:
+        name: fedora-test
+        image: molecule-fedora-systemd:44
+        state: started
+        # Trade-off consciente para testes: privileged: true é necessário aqui porque o systemd precisa
+        # gerenciar cgroups e o firewalld precisa manipular regras de rede do kernel (nftables).
+        # Não usar este padrão em containers de aplicação em produção.
+        privileged: true
+        # Compartilha o namespace de cgroups do host para compatibilidade com cgroups v2
+        cgroupns_mode: host
+        # Monta diretórios voláteis em memória (tmpfs) requeridos pelo daemon do systemd
+        tmpfs:
+          - /run
+          - /run/lock
+        # Monta o sistema de arquivos de cgroups do host em modo leitura e escrita
+        volumes:
+          - /sys/fs/cgroup:/sys/fs/cgroup:rw
+        # Inicializa o processo systemd como PID 1
+        command: /usr/sbin/init
+        # Sinal RTMIN+3 instrui o systemd a efetuar desligamento gracioso (halt/poweroff)
+        stop_signal: SIGRTMIN+3
+        recreate: false
+
+    # Registra a instância no formato esperado pelo driver delegated do Molecule
+    - name: Populate instance config
+      ansible.builtin.set_fact:
+        instance_conf:
+          - instance: fedora-test
+            address: fedora-test
+            # Conecta como usuário não-privilegiado para validar a escalada real via become: true
+            user: ansible
+            port: 22
+            connection: community.docker.docker
+
+    # Grava o arquivo de estado de instâncias gerenciadas do Molecule (molecule_instance_config)
+    - name: Dump instance config
+      ansible.builtin.copy:
+        content: |
+          # Molecule managed
+          {{ instance_conf | to_yaml }}
+        dest: "{{ molecule_instance_config }}"
+        mode: "0600"

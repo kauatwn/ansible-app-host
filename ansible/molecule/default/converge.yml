@@ -1,0 +1,5 @@
+---
+# Fase 'converge': Executa o playbook real de produção (site.yml) contra o ambiente de teste
+# Garante paridade total entre o ambiente de testes e os servidores reais sem duplicar tarefas
+- name: Import main site playbook
+  ansible.builtin.import_playbook: ../../playbooks/site.yml

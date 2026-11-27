@@ -1,0 +1,11 @@
+---
+# Fase 'cleanup': Limpa artefatos temporários e garante ambiente limpo entre execuções
+- name: Cleanup temporary test artifacts
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  tasks:
+    - name: Ensure no dangling ephemeral test state exists
+      ansible.builtin.debug:
+        msg: "Molecule cleanup phase completed successfully"

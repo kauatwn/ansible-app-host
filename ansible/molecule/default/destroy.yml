@@ -1,0 +1,28 @@
+---
+# Fase 'destroy': Para e remove o container efêmero garantindo recuperação total de recursos
+- name: Destroy ephemeral Fedora test container
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  tasks:
+    # Para e remove o container Docker utilizado no cenário de teste
+    - name: Stop and remove Fedora test container
+      community.docker.docker_container:
+        name: fedora-test
+        state: absent # Remove o container se ele existir
+        force_kill: true # Força parada imediata se necessário
+
+    # Esvazia a lista de instâncias no Molecule para sinalizar a destruição
+    - name: Populate instance config
+      ansible.builtin.set_fact:
+        instance_conf: []
+
+    # Atualiza o arquivo molecule_instance_config com lista vazia
+    - name: Dump instance config
+      ansible.builtin.copy:
+        content: |
+          # Molecule managed
+          {{ instance_conf | to_yaml }}
+        dest: "{{ molecule_instance_config }}"
+        mode: "0600"

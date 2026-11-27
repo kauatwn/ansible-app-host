@@ -1,0 +1,55 @@
+---
+# Fase 'verify': Audita declarativamente o estado dos serviços, o hardening de segurança e o proxy HTTP
+- name: Verify provisioned services, security hardening, and HTTP proxy
+  hosts: web
+  become: true
+  # Pula a coleta completa de facts do SO para acelerar o verify (service_facts e uri não dependem dela)
+  gather_facts: false
+
+  tasks:
+    # Coleta fatos e estados de todos os serviços gerenciados pelo systemd no container
+    - name: Gather systemd service facts
+      ansible.builtin.service_facts:
+
+    # Valida defensivamente se cada unit existe e se está ativa e habilitada no boot
+    - name: Assert sshd, firewalld, api, and caddy are running and enabled
+      ansible.builtin.assert:
+        that:
+          - (item ~ '.service') in ansible_facts.services # Garante que a unit foi registrada no systemd
+          - ansible_facts.services[item ~ '.service'].state == 'running' # Serviço em execução
+          - ansible_facts.services[item ~ '.service'].status == 'enabled' # Habilitado para iniciar no boot
+        fail_msg: "Service {{ item }} is missing, not running, or not enabled on boot"
+      loop:
+        - sshd # Servidor SSH administrativo
+        - firewalld # Daemon de gerenciamento de firewall
+        - api # Serviço systemd da aplicação Go
+        - caddy # Servidor web e reverse proxy
+
+    # Lê o arquivo drop-in de configuração do daemon SSH para auditar o hardening
+    - name: Read SSH hardening drop-in file
+      ansible.builtin.slurp:
+        src: /etc/ssh/sshd_config.d/00-hardening.conf
+      register: ssh_hardening_file
+
+    # Garante que o login direto de root e a autenticação por senha estão desativados
+    - name: Assert root login and password authentication are disabled
+      ansible.builtin.assert:
+        that:
+          - "'PermitRootLogin no' in (ssh_hardening_file.content | b64decode)" # Root login bloqueado
+          - "'PasswordAuthentication no' in (ssh_hardening_file.content | b64decode)" # Apenas chaves SSH permitidas
+        fail_msg: "SSH hardening directives were not properly applied"
+
+    # Testa o fluxo completo de ponta a ponta: requisição HTTP na porta 80 encaminhada pelo Caddy para a API
+    - name: Request HTTP endpoint through Caddy reverse proxy
+      ansible.builtin.uri:
+        url: http://localhost/ # Porta 80 do Caddy
+        return_content: true
+        status_code: 200 # Espera código HTTP 200 OK
+      register: http_response
+
+    # Valida o payload JSON retornado pela aplicação Go via proxy reverso
+    - name: Assert API returns expected JSON payload
+      ansible.builtin.assert:
+        that:
+          - http_response.json.message == "Hello, World!" # Mensagem padrão da API Go
+        fail_msg: "Unexpected HTTP response payload from API"
