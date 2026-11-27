@@ -1,5 +1,7 @@
 ---
-- name: Recarregar Caddy
+# Handlers acionados por notificações de alteração na configuração do proxy reverso
+- name: Reload Caddy
+  # Recarrega a configuração do Caddy de forma graciosa sem interromper conexões ativas de clientes
   ansible.builtin.systemd:
     name: caddy
     state: reloaded

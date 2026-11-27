@@ -1,2 +1,5 @@
 ---
+# Valores padrão das variáveis da role de proxy reverso (podem ser sobrescritas no playbook ou inventário)
+
+# Porta TCP interna onde a aplicação Go upstream escuta conexões locais
 proxy_app_port: 8080
