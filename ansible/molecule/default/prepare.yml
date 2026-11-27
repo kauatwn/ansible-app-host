@@ -1,0 +1,24 @@
+---
+# Fase 'prepare': Prepara pré-requisitos na máquina de controle e aguarda a inicialização do container
+- name: Prepare control node prerequisites
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  tasks:
+    # Garante a existência de um par de chaves SSH no nó de controle para a role 'security'
+    - name: Ensure temporary SSH public key exists on control node
+      ansible.builtin.command:
+        cmd: ssh-keygen -t ed25519 -f "{{ lookup('env', 'HOME') }}/.ssh/id_ed25519" -N ""
+        creates: "{{ lookup('env', 'HOME') }}/.ssh/id_ed25519.pub"
+
+# Aguarda o boot completo do systemd no container de teste antes de executar o playbook principal
+- name: Wait for target container systemd initialization
+  hosts: web
+  gather_facts: false
+
+  tasks:
+    # Executa verificação em raw (sem requerer Python) até que o systemd alcance estado 'running' ou 'degraded'
+    - name: Wait until systemd is ready inside container
+      ansible.builtin.raw: systemctl is-system-running --wait || true
+      changed_when: false
