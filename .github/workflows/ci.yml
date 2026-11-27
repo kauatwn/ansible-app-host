@@ -1,0 +1,169 @@
+name: "Continuous Integration"
+
+on:
+  pull_request:
+    branches: ["main"]
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  PY_COLORS: "1"
+  ANSIBLE_FORCE_COLOR: "1"
+
+jobs:
+  go-quality:
+    name: "Go: Lint, Test & Vulncheck"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+
+    steps:
+      - name: "Checkout code"
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: "Setup Go"
+        uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        with:
+          go-version-file: "go.mod"
+          cache: true
+          cache-dependency-path: "go.sum"
+
+      - name: "Check Code Formatting (gofmt)"
+        run: |
+          if [[ -n $(gofmt -l .) ]]; then
+            echo "Code is not formatted. Run 'gofmt -w .' locally."
+            exit 1
+          fi
+
+      - name: "Run Go Vet"
+        run: go vet ./...
+
+      - name: "Run Unit Tests"
+        run: go test -race -v ./...
+
+      - name: "Run Go Vulnerability Check (govulncheck)"
+        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+
+  ansible-syntax:
+    name: "Ansible: Validate Playbook Syntax"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+
+    steps:
+      - name: "Checkout code"
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: "Setup Python"
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: "Install Ansible Core"
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install ansible
+
+      - name: "Install Galaxy Collections & Check Syntax"
+        working-directory: ansible
+        run: |
+          ansible-galaxy collection install -r requirements.yml
+          ansible-playbook --syntax-check -i inventory/hosts.example.ini playbooks/site.yml
+
+  go-build:
+    name: "Go: Build Linux AMD64 Binary"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+
+    steps:
+      - name: "Checkout code"
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: "Setup Go"
+        uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        with:
+          go-version-file: "go.mod"
+          cache: true
+          cache-dependency-path: "go.sum"
+
+      - name: "Build Static Binary"
+        run: |
+          mkdir -p bin
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o bin/api ./cmd/api
+
+      - name: "Upload Binary Artifact"
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: api-linux-amd64
+          path: bin/api
+          if-no-files-found: error
+          retention-days: 1
+
+  molecule-test:
+    name: "Molecule: Fedora 44 Systemd Integration & Idempotence"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    needs: [go-quality, ansible-syntax, go-build]
+
+    steps:
+      - name: "Checkout code"
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: "Download Go Binary Artifact"
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: api-linux-amd64
+          path: bin
+
+      - name: "Ensure Binary Executable Permissions"
+        run: chmod +x bin/api
+
+      - name: "Setup Python"
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+
+      # Instala ansible, molecule e o SDK Python 'docker' exigido pelos módulos community.docker
+      - name: "Install Ansible, Molecule & Docker SDK"
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install ansible molecule docker
+
+      - name: "Run Molecule Test Suite (Fedora 44)"
+        working-directory: ansible
+        run: molecule test --destroy=never
+
+      - name: "Diagnostics on Failure"
+        if: failure()
+        run: |
+          echo "=== Running Containers ==="
+          docker ps -a
+          if docker ps -a --format '{{.Names}}' | grep -q '^fedora-test$'; then
+            echo "=== Systemd Units Status ==="
+            docker exec fedora-test systemctl status api caddy sshd firewalld --no-pager || true
+            echo "=== API & Caddy Journal Logs ==="
+            docker exec fedora-test journalctl -u api -u caddy -n 50 --no-pager || true
+          fi
+
+      - name: "Destroy Ephemeral Test Container"
+        if: always()
+        working-directory: ansible
+        run: molecule destroy || true
