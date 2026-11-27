@@ -1,25 +1,30 @@
 ---
-- name: Instalar Caddy via dnf
+# Instalação do servidor web Caddy a partir dos repositórios oficiais da distribuição
+- name: Install Caddy web server
   ansible.builtin.dnf:
     name: caddy
-    state: present
+    state: present # Garante que o pacote esteja instalado no host
 
-- name: Permitir que o proxy reverso conecte na API local via SELinux
+# Configuração de política do SELinux para permitir que o proxy web abra sockets de rede em portas locais (upstream)
+# Sem este booleano ativado, o SELinux bloqueia conexões do Caddy para o localhost:8080
+- name: Allow reverse proxy to connect to local upstream via SELinux
   ansible.posix.seboolean:
-    name: httpd_can_network_connect
-    state: true
-    persistent: true
-  when: (ansible_facts.selinux.status | default('disabled')) == 'enabled'
+    name: httpd_can_network_connect # Permite que processos de serviço HTTP estabeleçam conexões TCP de saída
+    state: true # Ativa a permissão no SELinux
+    persistent: true # Grava a configuração no subsistema de políticas para persistir após reinicializações
+  when: (ansible_facts.selinux.status | default('disabled')) == 'enabled' # Executa apenas se o SELinux estiver ativo
 
-- name: Configurar Caddyfile encaminhando tráfego HTTP para a API interna
+# Renderiza o arquivo Caddyfile com a rota de proxy reverso apontando para a porta da aplicação
+- name: Configure Caddyfile reverse proxy
   ansible.builtin.template:
-    src: Caddyfile.j2
+    src: Caddyfile.j2 # Template Jinja2 contendo as diretivas do Caddy
     dest: /etc/caddy/Caddyfile
-    mode: "0644"
-  notify: Recarregar Caddy
+    mode: "0644" # Permissão padrão de leitura para daemons do sistema
+  notify: Reload Caddy # Recarrega o Caddy sem derrubar conexões ativas caso o arquivo seja modificado
 
-- name: Garantir que o Caddy esteja ativo e habilitado no boot
+# Garante que o serviço do Caddy esteja habilitado para inicializar no boot e ativo no sistema
+- name: Ensure Caddy service is enabled and running
   ansible.builtin.systemd:
     name: caddy
-    enabled: true
-    state: started
+    enabled: true # Inicia o Caddy automaticamente no boot do sistema operacional
+    state: started # Garante que o serviço esteja em execução no momento
