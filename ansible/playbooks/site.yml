@@ -1,18 +1,23 @@
 ---
-- name: Provisionar e endurecer servidor de aplicação Linux
-  hosts: web
-  become: true
+# Playbook principal que orquestra a preparação, endurecimento e deploy da aplicação no host Linux
+- name: Provision and harden Linux application host
+  hosts: web # Aplica o playbook aos servidores do grupo [web] definidos no inventário
+  become: true # Executa todas as tarefas com privilégios de superusuário (sudo / root)
+  # Desativa a coleta inicial de facts pois sistemas operacionais minimalistas podem não ter Python instalado
   gather_facts: false
 
+  # Variáveis globais do playbook repassadas para as roles filhas
   vars:
-    security_admin_user: sysadmin
-    app_name: api
-    app_user: appuser
-    app_port: 8080
-    app_binary_src: "{{ playbook_dir }}/../../bin/{{ app_name }}"
+    security_admin_user: sysadmin # Usuário administrativo com privilégios sudo e chave SSH
+    app_name: api # Nome identificador da aplicação Go e do serviço systemd
+    app_user: appuser # Usuário não privilegiado de sistema dedicado à execução da aplicação
+    app_port: 8080 # Porta TCP interna em que o servidor HTTP da aplicação escuta
+    # Resolve dinamicamente o caminho do binário compilado tanto no playbook direto (2 níveis) quanto no Molecule (3 níveis)
+    app_binary_src: "{{ (playbook_dir ~ '/../../bin/' ~ app_name) if (playbook_dir ~ '/../../bin/' ~ app_name) is file else (playbook_dir ~ '/../../../bin/' ~ app_name) }}"
 
   pre_tasks:
-    - name: Instalar Python 3 na VM minimalista (bootstrap)
+    # Executa comandos shell puros via SSH/Docker (módulo raw não requer Python no host remoto) para garantir a presença do Python 3
+    - name: Bootstrap Python 3 on minimal VM
       ansible.builtin.raw: |
         if ! command -v python3 >/dev/null 2>&1; then
           dnf install -y python3 python3-libdnf5 || dnf install -y python3 || exit 1
@@ -20,13 +25,15 @@
         else
           echo BOOTSTRAP_PYTHON_PRESENT
         fi
-      register: python_bootstrap
-      changed_when: "'BOOTSTRAP_PYTHON_INSTALLED' in python_bootstrap.stdout"
+      register: python_bootstrap # Armazena o stdout para avaliar se houve alteração no host
+      changed_when: "'BOOTSTRAP_PYTHON_INSTALLED' in python_bootstrap.stdout" # Idempotência: marca como changed apenas na primeira instalação
 
-    - name: Coletar facts do sistema após instalar o Python
+    # Coleta facts do host (SO, interfaces de rede, SELinux) agora que o interpretador Python está disponível
+    - name: Gather system facts after Python bootstrap
       ansible.builtin.setup:
 
+  # Execução sequencial das roles para provisionamento modular da máquina
   roles:
-    - role: security
-    - role: app
-    - role: proxy
+    - role: security # 1. Hardening do SSH, criação de usuário administrativo e regras do firewalld
+    - role: app # 2. Criação de usuário isolado, deploy do binário Go e configuração do systemd sandbox
+    - role: proxy # 3. Instalação e configuração do Caddy como reverse proxy na porta 80
