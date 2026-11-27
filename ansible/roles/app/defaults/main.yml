@@ -1,0 +1,5 @@
+---
+app_user: appuser
+app_port: 8080
+app_dir: /opt/api
+app_binary_src: "{{ playbook_dir }}/../../bin/api"

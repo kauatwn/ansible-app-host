@@ -1,0 +1,39 @@
+---
+- name: Criar usuário de sistema sem shell para isolar a aplicação
+  ansible.builtin.user:
+    name: "{{ app_user }}"
+    system: true
+    shell: /usr/sbin/nologin
+    create_home: false
+
+- name: Criar diretório da aplicação
+  ansible.builtin.file:
+    path: "{{ app_dir }}"
+    state: directory
+    owner: "{{ app_user }}"
+    group: "{{ app_user }}"
+    mode: "0755"
+
+- name: Copiar binário Go compilado para o servidor
+  ansible.builtin.copy:
+    src: "{{ app_binary_src }}"
+    dest: "{{ app_dir }}/api"
+    owner: "{{ app_user }}"
+    group: "{{ app_user }}"
+    mode: "0755"
+    setype: "{{ 'bin_t' if (ansible_facts.selinux.status | default('disabled')) == 'enabled' else omit }}"
+  notify: Reiniciar API
+
+- name: Configurar unit file do systemd com diretivas de isolamento
+  ansible.builtin.template:
+    src: api.service.j2
+    dest: /etc/systemd/system/api.service
+    mode: "0644"
+  notify: Reiniciar API
+
+- name: Garantir que o serviço da API esteja ativo e habilitado no boot
+  ansible.builtin.systemd:
+    name: api
+    enabled: true
+    state: started
+    daemon_reload: true
