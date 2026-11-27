@@ -1,62 +1,71 @@
 ---
-- name: Garantir pacotes de SSH, firewall e bindings Python do SELinux
+# Instala pacotes essenciais para comunicação segura, controle de firewall e manipulação do SELinux
+- name: Ensure SSH server, firewalld, and SELinux Python bindings are installed
   ansible.builtin.dnf:
     name:
-      - openssh-server
-      - firewalld
-      - python3-firewall
-      - policycoreutils-python-utils
+      - openssh-server # Servidor SSH para conexões e administração remota
+      - firewalld # Daemon dinâmico para gerenciamento de regras de firewall e zonas de rede
+      - python3-firewall # Bindings Python necessários para o módulo ansible.posix.firewalld
+      - policycoreutils-python-utils # Utilitários para gestão de políticas e contextos SELinux (semanage)
     state: present
 
-- name: Gerar chaves de host SSH caso ainda não existam
+# Em instalações minimalistas do Fedora/RHEL, o openssh-server pode não gerar chaves de host automaticamente
+- name: Generate SSH host keys if missing
   ansible.builtin.command:
-    cmd: ssh-keygen -A
-    creates: /etc/ssh/ssh_host_ed25519_key
+    cmd: ssh-keygen -A # Gera chaves ausentes de todos os tipos (RSA, ECDSA, ED25519)
+    creates: /etc/ssh/ssh_host_ed25519_key # Evita execução desnecessária se a chave ED25519 já existir
 
-- name: Criar usuário administrativo no grupo wheel
+# Cria um usuário administrativo nomeado para evitar o uso direto da conta 'root'
+- name: Create administrative user in wheel group
   ansible.builtin.user:
     name: "{{ security_admin_user }}"
-    groups: "{{ security_admin_group }}"
-    append: true
-    shell: /bin/bash
-    create_home: true
+    groups: "{{ security_admin_group }}" # Adiciona ao grupo wheel para permitir elevação de privilégios via sudo
+    append: true # Garante a adição ao grupo sem remover o usuário de outros grupos existentes
+    shell: /bin/bash # Shell interativo padrão para o administrador
+    create_home: true # Cria o diretório /home para armazenamento de arquivos e chaves SSH
 
-- name: Configurar chave SSH autorizada para o usuário administrativo
+# Injeta a chave pública SSH do administrador local no servidor remoto
+- name: Configure authorized SSH public key for administrative user
   ansible.posix.authorized_key:
     user: "{{ security_admin_user }}"
-    key: "{{ lookup('file', security_ssh_public_key_file) }}"
+    key: "{{ lookup('file', security_ssh_public_key_file) }}" # Lê o arquivo de chave pública do nó de controle
     state: present
 
-- name: Configurar sudo sem senha para o usuário admin no laboratório
+# Configura regras de sudo sem senha para o usuário administrativo no ambiente de laboratório
+- name: Configure passwordless sudo for administrative user
   ansible.builtin.copy:
     dest: "/etc/sudoers.d/{{ security_admin_user }}"
     content: "{{ security_admin_user }} ALL=(ALL) NOPASSWD:ALL\n"
-    mode: "0440"
-    validate: "visudo -cf %s"
+    mode: "0440" # Permissão estrita somente leitura requerida pelo sudoers
+    validate: "visudo -cf %s" # Valida a sintaxe do arquivo temporário antes de salvar, evitando quebrar o sudo
 
-- name: Aplicar hardening de SSH via drop-in de alta prioridade
+# Hardening do SSH: Desativa login direto como root e autenticação por senha
+# Usa arquivo drop-in no diretório sshd_config.d para não sobrescrever a configuração original da distribuição
+- name: Apply SSH hardening drop-in configuration
   ansible.builtin.copy:
     dest: /etc/ssh/sshd_config.d/00-hardening.conf
     mode: "0644"
     content: |
-      PermitRootLogin no
-      PasswordAuthentication no
-    validate: "/usr/sbin/sshd -t -f %s"
-  notify: Reiniciar SSHD
+      PermitRootLogin no # Força administradores a logarem com suas contas nominais
+      PasswordAuthentication no # Bloqueia autenticação por senha, permitindo apenas chaves criptográficas
+    validate: "/usr/sbin/sshd -t -f %s" # Testa a sintaxe do arquivo com o binário do sshd antes de aplicar
+  notify: Restart sshd # Reinicia o sshd apenas se o arquivo foi criado ou modificado
 
-- name: Garantir que os serviços sshd e firewalld estejam ativos no boot
+# Garante que os serviços de acesso e firewall estejam ativos e configurados para iniciar no boot
+- name: Ensure sshd and firewalld services are enabled and running
   ansible.builtin.systemd:
     name: "{{ item }}"
-    enabled: true
-    state: started
+    enabled: true # Inicia o serviço automaticamente no boot do sistema operacional
+    state: started # Garante que o serviço esteja em execução imediatamente
   loop:
     - sshd
     - firewalld
 
-- name: Liberar serviços SSH e HTTP no firewalld
+# Configura a política do firewalld, bloqueando portas não explicitamente autorizadas
+- name: Allow required services in firewalld
   ansible.posix.firewalld:
     service: "{{ item }}"
-    permanent: true
-    immediate: true
+    permanent: true # Grava a regra na configuração persistente do firewall para resistir a reboots
+    immediate: true # Aplica a regra imediatamente em tempo de execução sem exigir reload manual
     state: enabled
   loop: "{{ security_allowed_firewall_services }}"
