@@ -3,8 +3,12 @@
 - name: Verify provisioned services, security hardening, and HTTP proxy
   hosts: web
   become: true
-  # Pula a coleta completa de facts do SO para acelerar o verify (service_facts e uri não dependem dela)
-  gather_facts: false
+  # Coleta apenas os facts mínimos de distribuição para identificar o nome da unit SSH (sshd vs ssh)
+  gather_facts: true
+  gather_subset:
+    - "!all"
+    - "!min"
+    - distribution
 
   tasks:
     # Coleta fatos e estados de todos os serviços gerenciados pelo systemd no container
@@ -12,7 +16,7 @@
       ansible.builtin.service_facts:
 
     # Valida defensivamente se cada unit existe e se está ativa e habilitada no boot
-    - name: Assert sshd, firewalld, api, and caddy are running and enabled
+    - name: Assert SSH, firewalld, api, and caddy are running and enabled
       ansible.builtin.assert:
         that:
           - (item ~ '.service') in ansible_facts.services # Garante que a unit foi registrada no systemd
@@ -20,7 +24,7 @@
           - ansible_facts.services[item ~ '.service'].status == 'enabled' # Habilitado para iniciar no boot
         fail_msg: "Service {{ item }} is missing, not running, or not enabled on boot"
       loop:
-        - sshd # Servidor SSH administrativo
+        - "{{ 'sshd' if ansible_facts['os_family'] == 'RedHat' else 'ssh' }}" # Nome do daemon SSH varia por família de SO
         - firewalld # Daemon de gerenciamento de firewall
         - api # Serviço systemd da aplicação Go
         - caddy # Servidor web e reverse proxy

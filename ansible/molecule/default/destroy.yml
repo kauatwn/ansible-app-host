@@ -1,17 +1,20 @@
 ---
-# Fase 'destroy': Para e remove o container efêmero garantindo recuperação total de recursos
-- name: Destroy ephemeral Fedora test container
+# Fase 'destroy': Para e remove os containers efêmeros garantindo recuperação total de recursos
+- name: Destroy ephemeral multi-distro test containers
   hosts: localhost
   connection: local
   gather_facts: false
 
   tasks:
-    # Para e remove o container Docker utilizado no cenário de teste
-    - name: Stop and remove Fedora test container
+    # Para e remove os containers Docker utilizados no cenário de teste
+    - name: Stop and remove test containers
       community.docker.docker_container:
-        name: fedora-test
+        name: "{{ item }}"
         state: absent # Remove o container se ele existir
         force_kill: true # Força parada imediata se necessário
+      loop:
+        - fedora-test
+        - debian-test
 
     # Esvazia a lista de instâncias no Molecule para sinalizar a destruição
     - name: Populate instance config
