@@ -1,12 +1,19 @@
 ---
-# Instala pacotes essenciais para comunicação segura, controle de firewall e manipulação do SELinux
-- name: Ensure SSH server, firewalld, and SELinux Python bindings are installed
-  ansible.builtin.dnf:
-    name:
-      - openssh-server # Servidor SSH para conexões e administração remota
-      - firewalld # Daemon dinâmico para gerenciamento de regras de firewall e zonas de rede
-      - python3-firewall # Bindings Python necessários para o módulo ansible.posix.firewalld
-      - policycoreutils-python-utils # Utilitários para gestão de políticas e contextos SELinux (semanage)
+# Carrega as variáveis específicas da família do sistema operacional (RedHat.yml ou Debian.yml)
+- name: Load OS-family specific variables
+  ansible.builtin.include_vars: "{{ ansible_facts['os_family'] }}.yml"
+
+# Atualiza o cache do APT em sistemas Debian/Ubuntu antes de usar o módulo genérico package
+- name: Update APT package cache on Debian-based systems
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600 # Evita atualizações redundantes dentro de 1 hora (preserva idempotência)
+  when: ansible_facts['os_family'] == 'Debian'
+
+# Instala pacotes essenciais para comunicação segura, controle de firewall e suporte do SO
+- name: Ensure SSH server, firewalld, and OS support packages are installed
+  ansible.builtin.package:
+    name: "{{ security_packages }}"
     state: present
 
 # Em instalações minimalistas do Fedora/RHEL, o openssh-server pode não gerar chaves de host automaticamente
@@ -16,10 +23,10 @@
     creates: /etc/ssh/ssh_host_ed25519_key # Evita execução desnecessária se a chave ED25519 já existir
 
 # Cria um usuário administrativo nomeado para evitar o uso direto da conta 'root'
-- name: Create administrative user in wheel group
+- name: Create administrative user in sudoers group
   ansible.builtin.user:
     name: "{{ security_admin_user }}"
-    groups: "{{ security_admin_group }}" # Adiciona ao grupo wheel para permitir elevação de privilégios via sudo
+    groups: "{{ security_admin_group }}" # Adiciona ao grupo sudoers da distribuição (wheel no Fedora, sudo no Debian)
     append: true # Garante a adição ao grupo sem remover o usuário de outros grupos existentes
     shell: /bin/bash # Shell interativo padrão para o administrador
     create_home: true # Cria o diretório /home para armazenamento de arquivos e chaves SSH
@@ -49,17 +56,17 @@
       PermitRootLogin no # Força administradores a logarem com suas contas nominais
       PasswordAuthentication no # Bloqueia autenticação por senha, permitindo apenas chaves criptográficas
     validate: "/usr/sbin/sshd -t -f %s" # Testa a sintaxe do arquivo com o binário do sshd antes de aplicar
-  notify: Restart sshd # Reinicia o sshd apenas se o arquivo foi criado ou modificado
+  notify: Restart ssh service # Reinicia o serviço SSH apenas se o arquivo foi criado ou modificado
 
 # Garante que os serviços de acesso e firewall estejam ativos e configurados para iniciar no boot
-- name: Ensure sshd and firewalld services are enabled and running
+- name: Ensure SSH and firewalld services are enabled and running
   ansible.builtin.systemd:
     name: "{{ item }}"
     enabled: true # Inicia o serviço automaticamente no boot do sistema operacional
     state: started # Garante que o serviço esteja em execução imediatamente
   loop:
-    - sshd
-    - firewalld
+    - "{{ security_ssh_service }}"
+    - "{{ security_firewall_service }}"
 
 # Configura a política do firewalld, bloqueando portas não explicitamente autorizadas
 - name: Allow required services in firewalld

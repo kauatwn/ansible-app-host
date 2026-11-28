@@ -1,11 +1,8 @@
 ---
-# Valores padrão das variáveis da role de segurança (podem ser sobrescritas no playbook ou inventário)
+# Valores padrão das variáveis agnósticas da role de segurança (podem ser sobrescritas no playbook ou inventário)
 
 # Nome do usuário administrativo dedicado que receberá acesso SSH e privilégios sudo
 security_admin_user: sysadmin
-
-# Grupo com permissões de sudo no RHEL/Fedora (equivalente ao grupo 'sudo' em sistemas Debian/Ubuntu)
-security_admin_group: wheel
 
 # Caminho local no nó de controle para a chave pública SSH que será injetada no servidor remoto
 security_ssh_public_key_file: ~/.ssh/id_ed25519.pub

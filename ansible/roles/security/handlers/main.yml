@@ -1,7 +1,7 @@
 ---
 # Handlers acionados por notificações de tarefas da role de segurança
-- name: Restart sshd
+- name: Restart ssh service
   # Reinicia o serviço SSH para carregar as diretivas de hardening (PermitRootLogin / PasswordAuthentication)
   ansible.builtin.systemd:
-    name: sshd
+    name: "{{ security_ssh_service }}"
     state: restarted
