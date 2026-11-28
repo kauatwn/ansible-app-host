@@ -1,6 +1,6 @@
 # Configuração do Caddy como servidor web e reverse proxy
-# Escuta na porta HTTP padrão (80) e encaminha o tráfego externo para a API Go local
-:80 {
-    # Encaminha as requisições HTTP para a aplicação em localhost, mantendo a porta da API isolada do acesso externo
-    reverse_proxy localhost:{{ app_port }}
+# Escuta na porta HTTP definida e encaminha o tráfego externo para a API Go local
+:{{ proxy_listen_port }} {
+    # Encaminha as requisições HTTP para a aplicação em loopback, mantendo a porta da API isolada do acesso externo
+    reverse_proxy {{ proxy_upstream_host }}:{{ app_port | default(8080) }}
 }
