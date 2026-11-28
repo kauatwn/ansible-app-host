@@ -1,0 +1,18 @@
+---
+# Variáveis específicas da família RedHat (Fedora / RHEL)
+
+# Grupo com permissões de sudo no RHEL/Fedora (equivalente ao grupo 'sudo' em sistemas Debian/Ubuntu)
+security_admin_group: wheel
+
+# Nome do daemon SSH no Fedora/RHEL
+security_ssh_service: sshd
+
+# Nome do daemon de firewall
+security_firewall_service: firewalld
+
+# Pacotes essenciais para comunicação segura, controle de firewall e manipulação do SELinux
+security_packages:
+  - openssh-server # Servidor SSH para conexões e administração remota
+  - firewalld # Daemon dinâmico para gerenciamento de regras de firewall e zonas de rede
+  - python3-firewall # Bindings Python necessários para o módulo ansible.posix.firewalld
+  - policycoreutils-python-utils # Utilitários para gestão de políticas e contextos SELinux (semanage)
