@@ -3,5 +3,5 @@
 - name: Reload Caddy
   # Recarrega a configuração do Caddy de forma graciosa sem interromper conexões ativas de clientes
   ansible.builtin.systemd:
-    name: caddy
+    name: "{{ proxy_service }}"
     state: reloaded

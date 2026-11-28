@@ -1,5 +1,11 @@
 ---
-# Valores padrão das variáveis da role de proxy reverso (podem ser sobrescritas no playbook ou inventário)
+# Valores padrão das variáveis agnósticas da role proxy (podem ser sobrescritas no playbook ou inventário)
 
-# Porta TCP interna onde a aplicação Go upstream escuta conexões locais
-proxy_app_port: 8080
+# Porta TCP pública em que o Caddy escutará as requisições HTTP externas
+proxy_listen_port: 80
+
+# Endereço de loopback local onde a aplicação Go (upstream) está escutando
+proxy_upstream_host: 127.0.0.1
+
+# Caminho absoluto do arquivo de configuração principal do Caddy no host remoto
+proxy_config_dest: /etc/caddy/Caddyfile

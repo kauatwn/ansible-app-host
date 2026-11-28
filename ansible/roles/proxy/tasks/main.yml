@@ -1,15 +1,26 @@
 ---
+# Carrega as variáveis específicas da família do sistema operacional (RedHat.yml ou Debian.yml)
+- name: Load OS-family specific variables
+  ansible.builtin.include_vars: "{{ ansible_facts['os_family'] }}.yml"
+
+# Atualiza o cache do APT em sistemas Debian/Ubuntu antes de usar o módulo genérico package
+- name: Update APT package cache on Debian-based systems
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600 # Evita atualizações redundantes dentro de 1 hora (preserva idempotência)
+  when: ansible_facts['os_family'] == 'Debian'
+
 # Instalação do servidor web Caddy a partir dos repositórios oficiais da distribuição
 - name: Install Caddy web server
-  ansible.builtin.dnf:
-    name: caddy
+  ansible.builtin.package:
+    name: "{{ proxy_package }}"
     state: present # Garante que o pacote esteja instalado no host
 
 # Configuração de política do SELinux para permitir que o proxy web abra sockets de rede em portas locais (upstream)
 # Sem este booleano ativado, o SELinux bloqueia conexões do Caddy para o localhost:8080
 - name: Allow reverse proxy to connect to local upstream via SELinux
   ansible.posix.seboolean:
-    name: httpd_can_network_connect # Permite que processos de serviço HTTP estabeleçam conexões TCP de saída
+    name: "{{ proxy_selinux_boolean }}" # Permite que processos de serviço HTTP estabeleçam conexões TCP de saída
     state: true # Ativa a permissão no SELinux
     persistent: true # Grava a configuração no subsistema de políticas para persistir após reinicializações
   when: (ansible_facts.selinux.status | default('disabled')) == 'enabled' # Executa apenas se o SELinux estiver ativo
@@ -18,13 +29,15 @@
 - name: Configure Caddyfile reverse proxy
   ansible.builtin.template:
     src: Caddyfile.j2 # Template Jinja2 contendo as diretivas do Caddy
-    dest: /etc/caddy/Caddyfile
+    dest: "{{ proxy_config_dest }}"
+    owner: root # Garante que apenas o superusuário possa alterar a configuração do proxy
+    group: root
     mode: "0644" # Permissão padrão de leitura para daemons do sistema
   notify: Reload Caddy # Recarrega o Caddy sem derrubar conexões ativas caso o arquivo seja modificado
 
 # Garante que o serviço do Caddy esteja habilitado para inicializar no boot e ativo no sistema
 - name: Ensure Caddy service is enabled and running
   ansible.builtin.systemd:
-    name: caddy
+    name: "{{ proxy_service }}"
     enabled: true # Inicia o Caddy automaticamente no boot do sistema operacional
     state: started # Garante que o serviço esteja em execução no momento
