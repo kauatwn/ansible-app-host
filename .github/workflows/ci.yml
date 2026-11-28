@@ -116,7 +116,7 @@ jobs:
           retention-days: 1
 
   molecule-test:
-    name: "Molecule: Fedora 44 Systemd Integration & Idempotence"
+    name: "Molecule: Multi-Distro Integration & Idempotence (Fedora 44 & Debian 13)"
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     needs: [go-quality, ansible-syntax, go-build]
@@ -147,7 +147,7 @@ jobs:
           python3 -m pip install --upgrade pip
           python3 -m pip install ansible molecule docker
 
-      - name: "Run Molecule Test Suite (Fedora 44)"
+      - name: "Run Molecule Test Suite (Fedora 44 & Debian 13)"
         working-directory: ansible
         run: molecule test --destroy=never
 
@@ -156,14 +156,18 @@ jobs:
         run: |
           echo "=== Running Containers ==="
           docker ps -a
-          if docker ps -a --format '{{.Names}}' | grep -q '^fedora-test$'; then
-            echo "=== Systemd Units Status ==="
-            docker exec fedora-test systemctl status api caddy sshd firewalld --no-pager || true
-            echo "=== API & Caddy Journal Logs ==="
-            docker exec fedora-test journalctl -u api -u caddy -n 50 --no-pager || true
-          fi
+          for container in fedora-test debian-test; do
+            if docker ps -a --format '{{.Names}}' | grep -q "^${container}$"; then
+              ssh_unit="sshd"
+              [[ "$container" == "debian-test" ]] && ssh_unit="ssh"
+              echo "=== [${container}] Systemd Units Status ==="
+              docker exec "$container" systemctl status api caddy "$ssh_unit" firewalld --no-pager || true
+              echo "=== [${container}] API & Caddy Journal Logs ==="
+              docker exec "$container" journalctl -u api -u caddy -n 50 --no-pager || true
+            fi
+          done
 
-      - name: "Destroy Ephemeral Test Container"
+      - name: "Destroy Ephemeral Test Containers"
         if: always()
         working-directory: ansible
         run: molecule destroy || true
