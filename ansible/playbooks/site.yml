@@ -6,7 +6,7 @@
   # Desativa a coleta inicial de facts pois sistemas operacionais minimalistas podem não ter Python instalado
   gather_facts: false
 
-  # Variáveis globais do playbook repassadas para as roles filhas
+  # Variáveis globais do playbook repassadas para as roles filhas (sobrescrevem defaults/main.yml das roles)
   vars:
     security_admin_user: sysadmin # Usuário administrativo com privilégios sudo e chave SSH
     app_name: api # Nome identificador da aplicação Go e do serviço systemd
@@ -17,14 +17,32 @@
 
   pre_tasks:
     # Executa comandos shell puros via SSH/Docker (módulo raw não requer Python no host remoto) para garantir a presença do Python 3
+    # Detecta dnf (Fedora/RHEL) ou apt-get (Debian/Ubuntu) pois ansible_facts ainda não foi coletado nesta etapa
     - name: Bootstrap Python 3 on minimal VM
       ansible.builtin.raw: |
-        if ! command -v python3 >/dev/null 2>&1; then
+        # Encerra imediatamente se o Python 3 já estiver disponível no host
+        if command -v python3 >/dev/null 2>&1; then
+          echo BOOTSTRAP_PYTHON_PRESENT
+          exit 0
+        fi
+
+        # Família RedHat (Fedora / RHEL)
+        if command -v dnf >/dev/null 2>&1; then
           dnf install -y python3 python3-libdnf5 || dnf install -y python3 || exit 1
           echo BOOTSTRAP_PYTHON_INSTALLED
-        else
-          echo BOOTSTRAP_PYTHON_PRESENT
+          exit 0
         fi
+
+        # Família Debian (Debian / Ubuntu)
+        if command -v apt-get >/dev/null 2>&1; then
+          apt-get update && apt-get install -y python3 || exit 1
+          echo BOOTSTRAP_PYTHON_INSTALLED
+          exit 0
+        fi
+
+        # Falha explícita caso nenhum gerenciador suportado seja encontrado
+        echo "Unsupported package manager: neither dnf nor apt-get found" >&2
+        exit 1
       register: python_bootstrap # Armazena o stdout para avaliar se houve alteração no host
       changed_when: "'BOOTSTRAP_PYTHON_INSTALLED' in python_bootstrap.stdout" # Idempotência: marca como changed apenas na primeira instalação
 
