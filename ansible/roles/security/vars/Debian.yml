@@ -1,0 +1,17 @@
+---
+# Variáveis específicas da família Debian (Debian / Ubuntu)
+
+# Grupo com permissões de sudo em sistemas Debian/Ubuntu (equivalente ao grupo 'wheel' no RHEL/Fedora)
+security_admin_group: sudo
+
+# Nome do daemon SSH no Debian/Ubuntu
+security_ssh_service: ssh
+
+# Nome do daemon de firewall
+security_firewall_service: firewalld
+
+# Pacotes essenciais para comunicação segura e controle de firewall
+security_packages:
+  - openssh-server # Servidor SSH para conexões e administração remota
+  - firewalld # Daemon dinâmico para gerenciamento de regras de firewall e zonas de rede
+  - python3-firewall # Bindings Python necessários para o módulo ansible.posix.firewalld

@@ -1,0 +1,8 @@
+---
+# Variáveis específicas da família Debian (Debian / Ubuntu)
+
+# Nome do pacote do servidor web Caddy nos repositórios APT (presente nativamente no Debian 12/13)
+proxy_package: caddy
+
+# Nome do daemon do Caddy gerenciado pelo systemd
+proxy_service: caddy
