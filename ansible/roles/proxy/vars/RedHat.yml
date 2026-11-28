@@ -1,0 +1,11 @@
+---
+# Variáveis específicas da família RedHat (Fedora / RHEL)
+
+# Nome do pacote do servidor web Caddy nos repositórios RPM
+proxy_package: caddy
+
+# Nome do daemon do Caddy gerenciado pelo systemd
+proxy_service: caddy
+
+# Booleano do SELinux que autoriza o processo HTTP a abrir conexões TCP de saída para o upstream local
+proxy_selinux_boolean: httpd_can_network_connect
