@@ -20,11 +20,15 @@ driver:
     ansible_connection_options:
       ansible_connection: community.docker.docker
 
-# Plataformas de teste: define as instâncias lógicas e seus grupos no inventário
+# Plataformas de teste: define as instâncias lógicas multi-distro e seus grupos no inventário
 platforms:
-  - name: fedora-test # Nome da instância e container de teste
+  - name: fedora-test # Instância principal (família RedHat: Fedora 44)
     groups:
       - web # Vincula ao grupo [web] definido no playbook de produção site.yml
+
+  - name: debian-test # Segunda plataforma validada (família Debian: Debian 13 Trixie)
+    groups:
+      - web # Vincula ao mesmo grupo [web] para validar o playbook agnóstico nas duas famílias
 
 # Provisionador Ansible: executa os playbooks correspondentes a cada fase do ciclo de vida
 provisioner:
@@ -33,27 +37,24 @@ provisioner:
   connection_options:
     ansible_connection: community.docker.docker
   playbooks:
-    create: create.yml # Criação da imagem e inicialização do container Docker
+    create: create.yml # Criação das imagens e inicialização dos containers Docker
     prepare: prepare.yml # Preparação de chaves SSH e espera pelo boot do systemd
     converge: converge.yml # Execução do playbook real de infraestrutura (site.yml)
     verify: verify.yml # Asserções de conformidade de serviços, hardening e HTTP
     cleanup: cleanup.yml # Limpeza de arquivos temporários e resíduos
-    destroy: destroy.yml # Parada e remoção definitiva do container de teste
+    destroy: destroy.yml # Parada e remoção definitiva dos containers de teste
   config_options:
     defaults:
       # Caminho das roles do projeto para resolução correta durante a execução
       roles_path: ${MOLECULE_PROJECT_DIRECTORY}/roles
-      # Silencia avisos de descoberta do Python no container gerenciado
+      # Silencia avisos de descoberta do Python nos containers gerenciados
       interpreter_python: auto_silent
   inventory:
-    host_vars:
-      fedora-test:
-        # Força o conector Docker como usuário não-privilegiado para validar become: true
-        ansible_connection: community.docker.docker
-        ansible_user: ansible
     group_vars:
       web:
+        # Força o conector Docker como usuário não-privilegiado em todas as instâncias para validar become: true
         ansible_connection: community.docker.docker
+        ansible_user: ansible
         # Caminho absoluto para o binário Go compilado na máquina de controle
         app_binary_src: "${MOLECULE_PROJECT_DIRECTORY}/../bin/api"
 
@@ -68,10 +69,10 @@ scenario:
     - cleanup # 2. Limpa resíduos de execuções anteriores
     - destroy # 3. Garante que containers antigos sejam encerrados
     - syntax # 4. Valida a sintaxe dos playbooks do cenário
-    - create # 5. Cria a infraestrutura efêmera (container Fedora 44 com systemd)
+    - create # 5. Cria a infraestrutura efêmera multi-distro (Fedora 44 e Debian 13 com systemd)
     - prepare # 6. Aguarda o boot completo do init (systemd)
     - converge # 7. Aplica o playbook de produção (site.yml)
     - idempotence # 8. Executa novamente o playbook garantindo zero alterações adicionais
     - verify # 9. Audita serviços ativos, hardening SSH e proxy reverso HTTP
     - cleanup # 10. Limpa arquivos temporários
-    - destroy # 11. Destrói o container efêmero liberando recursos
+    - destroy # 11. Destrói os containers efêmeros liberando recursos
