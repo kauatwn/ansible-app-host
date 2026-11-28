@@ -129,7 +129,6 @@ No GitHub Actions (`.github/workflows/ci.yml`), os jobs de lint/testes Go (`-rac
 │   │   ├── security/               # Firewall, drop-in SSH, appuser e vars/{RedHat,Debian}.yml
 │   │   ├── app/                    # Deploy do binário Go, contexto SELinux e unit api.service
 │   │   └── proxy/                  # Instalação/configuração do Caddy e vars/{RedHat,Debian}.yml
-│   └── molecule/default/
 │   └── molecule/
 │       └── default/
 │           ├── Dockerfile          # Imagem de teste Fedora 44 com systemd (PID 1)
@@ -177,8 +176,6 @@ molecule test
 > - `molecule verify`: roda somente as asserções do `verify.yml`.
 > - `molecule login -h fedora-test` (ou `-h debian-test`): abre um shell interativo na instância desejada.
 > - `molecule destroy`: remove os containers ao encerrar os testes.
->
->
 
 ### 3. Provisionar um Servidor Linux (VM / Bare-Metal)
 
@@ -206,7 +203,9 @@ ansible-playbook -i inventory/hosts.ini playbooks/site.yml
 ```
 
 > [!NOTE]
-> Em um servidor recém-criado antes do primeiro provisionamento, o modo `--check` não simula o bootstrap via módulo `raw` nem unidades de serviços de pacotes ainda não instalados. Caso a VM utilize um usuário padrão diferente do configurado no inventário na primeira execução, sobrescreva via `-e "ansible_user=<user>"`. Exemplo:
+> Em um servidor recém-criado antes do primeiro provisionamento, o modo `--check` não simula o bootstrap via módulo `raw` nem unidades de serviços de pacotes ainda não instalados.
+>
+> Caso a VM utilize um usuário padrão diferente do configurado no inventário na primeira execução, sobrescreva via `-e "ansible_user=<user>"`. Exemplo:
 >
 > ```bash
 > ansible-playbook -i inventory/hosts.ini playbooks/site.yml -e "ansible_user=<user>"
